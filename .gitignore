@@ -1,0 +1,23 @@
+# Environments / Secrets
+.env
+.venv/
+venv/
+env/
+ENV/
+
+# Python caching & compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Data & Output Files
+# Ignoring CSVs to prevent accidental commits of personal contact data or generated files
+*.csv
+# (If you want to track a specific CSV, you can safely allow it by adding: !filename.csv)
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Resume.pdf
