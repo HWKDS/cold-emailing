@@ -1,5 +1,6 @@
 import argparse
 import csv
+import mimetypes
 import os
 import smtplib
 import ssl
@@ -99,7 +100,7 @@ def build_message(
     recipient: Recipient,
     subject: str,
     body_template: str,
-    resume_path: Path | None,
+    attachments: list[Path],
 ) -> EmailMessage:
     message = EmailMessage()
     message["From"] = sender
@@ -107,16 +108,19 @@ def build_message(
     message["Subject"] = subject
     message.set_content(body_template.format(name=recipient.name, company=recipient.company))
 
-    if resume_path is not None:
-        with resume_path.open("rb") as resume_file:
-            resume_data = resume_file.read()
-
-        message.add_attachment(
-            resume_data,
-            maintype="application",
-            subtype="pdf",
-            filename=resume_path.name,
-        )
+    for attachment_path in attachments:
+        ctype, encoding = mimetypes.guess_type(str(attachment_path))
+        if ctype is None or encoding is not None:
+            ctype = "application/octet-stream"
+        maintype, subtype = ctype.split("/", 1)
+        
+        with attachment_path.open("rb") as f:
+            message.add_attachment(
+                f.read(),
+                maintype=maintype,
+                subtype=subtype,
+                filename=attachment_path.name,
+            )
 
     return message
 
@@ -125,14 +129,14 @@ def preview_message(
     recipient: Recipient,
     subject: str,
     body_template: str,
-    resume_path: Path | None,
+    attachments: list[Path],
 ) -> str:
     body = body_template.format(name=recipient.name, company=recipient.company)
-    attachment_name = resume_path.name if resume_path is not None else "none"
+    attachment_names = ", ".join(a.name for a in attachments) if attachments else "none"
     lines = [
         f"To: {recipient.email}",
         f"Subject: {subject}",
-        f"Attachment: {attachment_name}",
+        f"Attachments: {attachment_names}",
         "",
         body,
     ]
@@ -182,7 +186,7 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description="Send personalized internship outreach emails.")
     parser.add_argument("--recipients", required=True, type=Path, help="CSV with email,name,company columns")
-    parser.add_argument("--resume", type=Path, help="Optional path to your resume PDF")
+    parser.add_argument("--attachments", type=Path, nargs="*", default=[], help="Optional paths to files to attach (e.g. resume.pdf cover_letter.pdf)")
     parser.add_argument("--subject", default=DEFAULT_SUBJECT, help="Email subject line")
     parser.add_argument("--body", default=DEFAULT_BODY, help="Plain-text email body template")
     parser.add_argument("--host", default=os.getenv("SMTP_HOST", "smtp.gmail.com"), help="SMTP host")
@@ -211,8 +215,9 @@ def main() -> int:
 
     if not args.recipients.exists():
         raise FileNotFoundError(f"Recipient CSV not found: {args.recipients}")
-    if args.resume is not None and not args.resume.exists():
-        raise FileNotFoundError(f"Resume PDF not found: {args.resume}")
+    for attachment in args.attachments:
+        if not attachment.exists():
+            raise FileNotFoundError(f"Attachment not found: {attachment}")
     if not args.username:
         raise ValueError("Missing sender email. Set EMAIL_ADDRESS or pass --username.")
     if args.send and not args.password:
@@ -233,7 +238,7 @@ def main() -> int:
         for index, recipient in enumerate(recipients[: args.preview], start=1):
             print(f"--- Preview {index} ---")
             print(f"Company: {recipient.company}")
-            print(preview_message(recipient, args.subject, args.body, args.resume))
+            print(preview_message(recipient, args.subject, args.body, args.attachments))
             print("-" * 60)
 
         print()
@@ -251,7 +256,7 @@ def main() -> int:
         print("Note: This is script-side scheduling. Gmail Scheduled tab is not used by SMTP sends.")
 
     for index, recipient in enumerate(recipients, start=1):
-        message = build_message(args.username, recipient, args.subject, args.body, args.resume)
+        message = build_message(args.username, recipient, args.subject, args.body, args.attachments)
         send_email(args.host, args.port, args.username, args.password, message)
         print(f"Sent {index}/{len(recipients)} to {recipient.email} ({recipient.name})")
         time.sleep(max(args.delay, 0.0))

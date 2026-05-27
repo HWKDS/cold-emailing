@@ -84,7 +84,7 @@ python cold_emailer.py --recipients recipients.csv --send --confirm --start-at "
 - `--body`: Use a different plain-text email body template.
 - `--limit 5`: Send to only the first set of rows (useful for testing on a small batch first).
 - `--delay 2`: Wait `N` seconds between each email send to prevent rate-limiting.
-- `--resume path/to/resume.pdf`: Attach a PDF file to every email.
+- `--attachments path/to/resume.pdf path/to/cover_letter.pdf`: Attach one or more files to every email.
 - `--preview 5`: Show only the first N previews in a dry-run.
 
 ## Important Note
