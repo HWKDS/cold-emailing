@@ -58,9 +58,12 @@ python cold_emailer.py --recipients recipients.csv --dry-run
 
 ## 4. Send For Real
 
-When you are happy with the preview and your `.env` is setup, fire away:
+When you are happy with the preview, set your environment variables for credentials (as the script no longer reads `.env` directly) and fire away:
 
 ```bash
+# Windows PowerShell
+$env:EMAIL_ADDRESS="your.email@gmail.com"
+$env:EMAIL_PASSWORD="your_app_password"
 python cold_emailer.py --recipients recipients.csv --send --confirm
 ```
 
@@ -85,6 +88,7 @@ python cold_emailer.py --recipients recipients.csv --send --confirm --start-at "
 - `--limit 5`: Send to only the first set of rows (useful for testing on a small batch first).
 - `--delay 2`: Wait `N` seconds between each email send to prevent rate-limiting.
 - `--attachments path/to/resume.pdf path/to/cover_letter.pdf`: Attach one or more files to every email.
+- `--cc manager@example.com mentor@example.com`: CC one or more email addresses on all sent emails.
 - `--preview 5`: Show only the first N previews in a dry-run.
 
 ## Important Note

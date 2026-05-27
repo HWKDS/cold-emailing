@@ -34,23 +34,6 @@ Portfolio: https://hwkds.dev
 x: https://x.com/KDSAMF
 """
 
-
-def load_env_file(env_path: Path = Path(".env")) -> None:
-    if not env_path.exists():
-        return
-
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
-
-
 @dataclass
 class Recipient:
     email: str
@@ -101,10 +84,13 @@ def build_message(
     subject: str,
     body_template: str,
     attachments: list[Path],
+    cc_addresses: list[str] = [],
 ) -> EmailMessage:
     message = EmailMessage()
     message["From"] = sender
     message["To"] = recipient.email
+    if cc_addresses:
+        message["Cc"] = ", ".join(cc_addresses)
     message["Subject"] = subject
     message.set_content(body_template.format(name=recipient.name, company=recipient.company))
 
@@ -130,16 +116,22 @@ def preview_message(
     subject: str,
     body_template: str,
     attachments: list[Path],
+    cc_addresses: list[str] = [],
 ) -> str:
     body = body_template.format(name=recipient.name, company=recipient.company)
     attachment_names = ", ".join(a.name for a in attachments) if attachments else "none"
     lines = [
         f"To: {recipient.email}",
+    ]
+    if cc_addresses:
+        lines.append(f"Cc: {', '.join(cc_addresses)}")
+    
+    lines.extend([
         f"Subject: {subject}",
         f"Attachments: {attachment_names}",
         "",
         body,
-    ]
+    ])
     return "\n".join(lines)
 
 
@@ -182,11 +174,10 @@ def wait_for_scheduled_start(start_at: str | None, wait_seconds: int | None) -> 
 
 
 def main() -> int:
-    load_env_file()
-
     parser = argparse.ArgumentParser(description="Send personalized internship outreach emails.")
     parser.add_argument("--recipients", required=True, type=Path, help="CSV with email,name,company columns")
     parser.add_argument("--attachments", type=Path, nargs="*", default=[], help="Optional paths to files to attach (e.g. resume.pdf cover_letter.pdf)")
+    parser.add_argument("--cc", type=str, nargs="*", default=[], help="Optional CC email addresses")
     parser.add_argument("--subject", default=DEFAULT_SUBJECT, help="Email subject line")
     parser.add_argument("--body", default=DEFAULT_BODY, help="Plain-text email body template")
     parser.add_argument("--host", default=os.getenv("SMTP_HOST", "smtp.gmail.com"), help="SMTP host")
@@ -238,7 +229,7 @@ def main() -> int:
         for index, recipient in enumerate(recipients[: args.preview], start=1):
             print(f"--- Preview {index} ---")
             print(f"Company: {recipient.company}")
-            print(preview_message(recipient, args.subject, args.body, args.attachments))
+            print(preview_message(recipient, args.subject, args.body, args.attachments, args.cc))
             print("-" * 60)
 
         print()
@@ -256,7 +247,7 @@ def main() -> int:
         print("Note: This is script-side scheduling. Gmail Scheduled tab is not used by SMTP sends.")
 
     for index, recipient in enumerate(recipients, start=1):
-        message = build_message(args.username, recipient, args.subject, args.body, args.attachments)
+        message = build_message(args.username, recipient, args.subject, args.body, args.attachments, args.cc)
         send_email(args.host, args.port, args.username, args.password, message)
         print(f"Sent {index}/{len(recipients)} to {recipient.email} ({recipient.name})")
         time.sleep(max(args.delay, 0.0))
